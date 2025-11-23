@@ -4,16 +4,17 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import { 
-  DollarSign, TrendingUp, PieChart as PieIcon, List, Trash2
+  DollarSign, TrendingUp, PieChart as PieIcon, List, Trash2, Target
 } from 'lucide-react';
-import { Asset, AssetCategoryType } from '../types';
-import { ASSET_CATEGORIES, formatCurrency, formatDate } from '../constants';
+import { Asset, User } from '../types';
+import { ASSET_CATEGORIES, formatCurrency, formatDate, RISK_PROFILES } from '../constants';
 
 interface DashboardProps {
   assets: Asset[];
   totalValue: number;
   isDark: boolean;
   onDeleteAsset: (id: string) => void;
+  currentUser?: User | null;
 }
 
 const Card: React.FC<{ children: React.ReactNode; className?: string; isDark: boolean }> = ({ children, className = "", isDark }) => (
@@ -23,12 +24,13 @@ const Card: React.FC<{ children: React.ReactNode; className?: string; isDark: bo
   </div>
 );
 
-const StatCard: React.FC<{ title: string; value: string | number; icon: any; colorClass: string; isDark: boolean }> = ({ title, value, icon: Icon, colorClass, isDark }) => (
+const StatCard: React.FC<{ title: string; value: string | number; icon: any; colorClass: string; isDark: boolean; subText?: React.ReactNode }> = ({ title, value, icon: Icon, colorClass, isDark, subText }) => (
   <Card isDark={isDark}>
     <div className="flex items-center justify-between">
       <div>
         <p className={`text-sm font-medium mb-1 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>{title}</p>
         <h3 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{value}</h3>
+        {subText && <div className="mt-1">{subText}</div>}
       </div>
       <div className={`p-3 rounded-full ${colorClass} bg-opacity-10`}>
         <Icon className={`w-6 h-6 ${colorClass.replace('bg-', 'text-')}`} />
@@ -57,9 +59,8 @@ const CategoryTrendChart: React.FC<{ data: any[]; color: string; isDark: boolean
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ assets, totalValue, isDark, onDeleteAsset }) => {
+const Dashboard: React.FC<DashboardProps> = ({ assets, totalValue, isDark, onDeleteAsset, currentUser }) => {
   // Tính toán danh sách tài sản hiện tại để vẽ biểu đồ tròn
-  // (Chỉ lấy bản ghi mới nhất cho mỗi cặp Tên + Loại)
   const currentHoldings = useMemo(() => {
     const latestMap = new Map<string, Asset>();
     const sorted = [...assets].sort((a, b) => {
@@ -78,7 +79,6 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, totalValue, isDark, onDel
   }, [assets]);
 
   const pieChartData = useMemo(() => {
-    // Sử dụng currentHoldings thay vì assets để vẽ biểu đồ cơ cấu hiện tại
     const grouped = currentHoldings.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + item.amount;
       return acc;
@@ -95,7 +95,6 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, totalValue, isDark, onDel
     return pieChartData.reduce((prev, current) => (prev.value > current.value) ? prev : current);
   }, [pieChartData]);
 
-  // Giữ nguyên logic historyData dựa trên toàn bộ assets để vẽ biểu đồ xu hướng theo thời gian
   const historyData = useMemo(() => {
     const trends: Record<string, any[]> = {};
     ASSET_CATEGORIES.forEach(cat => {
@@ -117,11 +116,35 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, totalValue, isDark, onDel
     return trends;
   }, [assets]);
 
+  const currentRiskProfile = useMemo(() => {
+      if (!currentUser?.riskProfile) return null;
+      return RISK_PROFILES.find(p => p.id === currentUser.riskProfile);
+  }, [currentUser]);
+
   return (
     <div className="space-y-6 pb-20">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Tổng Giá Trị Ròng" value={formatCurrency(totalValue)} icon={DollarSign} colorClass="bg-emerald-500 text-emerald-600" isDark={isDark} />
-        <StatCard title="Danh Mục Lớn Nhất" value={largestCategory.name} icon={TrendingUp} colorClass="bg-blue-500 text-blue-600" isDark={isDark} />
+        
+        {/* Changed this card to show Risk Profile if available, otherwise largest asset */}
+        {currentRiskProfile ? (
+             <StatCard 
+             title="Hồ Sơ Rủi Ro" 
+             value={currentRiskProfile.name.split(' (')[0]} // Show shorter name
+             icon={Target} 
+             colorClass="bg-blue-500 text-blue-600" 
+             isDark={isDark} 
+             subText={
+                <span className="text-xs opacity-70 flex items-center gap-1">
+                   <span style={{ backgroundColor: currentRiskProfile.color }} className="w-2 h-2 rounded-full inline-block"></span>
+                   {currentRiskProfile.recommendedAllocation.growth}% Tăng trưởng
+                </span>
+             }
+           />
+        ) : (
+             <StatCard title="Danh Mục Lớn Nhất" value={largestCategory.name} icon={TrendingUp} colorClass="bg-blue-500 text-blue-600" isDark={isDark} />
+        )}
+       
         <StatCard title="Tổng Số Giao Dịch" value={assets.length} icon={List} colorClass="bg-purple-500 text-purple-600" isDark={isDark} />
       </div>
 
@@ -131,7 +154,6 @@ const Dashboard: React.FC<DashboardProps> = ({ assets, totalValue, isDark, onDel
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><PieIcon className="w-5 h-5 text-slate-400" />Cơ Cấu Tài Sản</h2>
             {totalValue > 0 ? (
               <>
-                {/* Changed to explicit height to prevent rendering issues */}
                 <div className="w-full h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>

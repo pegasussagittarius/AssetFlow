@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Moon, Sun, User, Save, CheckCircle, Phone } from 'lucide-react';
+import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight } from 'lucide-react';
 import { User as UserType } from '../types';
+import { RISK_PROFILES } from '../constants';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface SettingsModalProps {
   toggleTheme: () => void;
   currentUser: UserType;
   onUpdateUser: (newUsername: string, newPhoneNumber: string) => void;
+  onOpenRiskSurvey: () => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -17,7 +19,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   isDark, 
   toggleTheme, 
   currentUser, 
-  onUpdateUser 
+  onUpdateUser,
+  onOpenRiskSurvey
 }) => {
   const [username, setUsername] = useState(currentUser.username);
   const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber);
@@ -33,6 +36,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       setSuccess('');
     }
   }, [isOpen, currentUser]);
+
+  const currentRiskProfile = RISK_PROFILES.find(p => p.id === currentUser.riskProfile);
 
   const handleSaveInfo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +91,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className={`rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 ${
+      <div className={`rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh] ${
         isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white'
       }`}>
         {/* Header */}
@@ -99,8 +104,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
           
+          {/* Section: Hồ sơ rủi ro */}
+          <div>
+            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+              Hồ sơ đầu tư
+            </h4>
+            <button 
+                onClick={onOpenRiskSurvey}
+                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all group ${
+                    isDark 
+                    ? 'bg-slate-900/50 border-slate-600 hover:bg-slate-800' 
+                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
+                        <Target className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                        <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Hồ sơ rủi ro</p>
+                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'} mt-0.5`}>
+                           {currentRiskProfile ? (
+                               <span style={{ color: currentRiskProfile.color }} className="font-bold">{currentRiskProfile.name}</span>
+                           ) : 'Chưa thiết lập'}
+                        </p>
+                    </div>
+                </div>
+                <ChevronRight className={`w-5 h-5 transition-transform group-hover:translate-x-1 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
+            </button>
+          </div>
+
           {/* Section: Giao diện */}
           <div>
             <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText } from 'lucide-react';
+import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText, Calculator } from 'lucide-react';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import AIAdvisorModal from './components/AIModal';
 import SettingsModal from './components/SettingsModal';
 import ExportReportModal from './components/ExportReportModal';
-import { Asset, User, AssetCategoryType } from './types';
-import { ASSET_CATEGORIES } from './constants';
+import RiskSurveyModal from './components/RiskSurveyModal';
+import { Asset, User, AssetCategoryType, RiskLevel } from './types';
+import { ASSET_CATEGORIES, DEFAULT_GOLD_PRICE, DEFAULT_EXCHANGE_RATE } from './constants';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -16,6 +17,7 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isRiskSurveyOpen, setIsRiskSurveyOpen] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -23,6 +25,12 @@ export default function App() {
   const [newAsset, setNewAsset] = useState<{ name: string; category: AssetCategoryType; amount: string; date: string }>({ 
     name: '', category: 'stock', amount: '', date: today 
   });
+
+  // State hỗ trợ tính toán Vàng
+  const [goldInputs, setGoldInputs] = useState({ taels: '', mace: '', pricePerMace: DEFAULT_GOLD_PRICE.toString() });
+  
+  // State hỗ trợ tính toán Ngoại tệ
+  const [fcInputs, setFcInputs] = useState({ quantity: '', exchangeRate: DEFAULT_EXCHANGE_RATE.toString() });
 
   useEffect(() => {
     if (currentUser) {
@@ -41,30 +49,80 @@ export default function App() {
     }
   }, [assets, currentUser]);
 
+  // Reset inputs when modal opens or category changes
+  useEffect(() => {
+    if (isAddModalOpen) {
+      if (newAsset.category !== 'gold') {
+         setGoldInputs({ taels: '', mace: '', pricePerMace: DEFAULT_GOLD_PRICE.toString() });
+      }
+      if (newAsset.category !== 'foreign_currency') {
+         setFcInputs({ quantity: '', exchangeRate: DEFAULT_EXCHANGE_RATE.toString() });
+      }
+    }
+  }, [isAddModalOpen, newAsset.category]);
+
+  // Auto calculate gold value
+  useEffect(() => {
+    if (newAsset.category === 'gold') {
+      const taels = parseFloat(goldInputs.taels) || 0;
+      const mace = parseFloat(goldInputs.mace) || 0;
+      const price = parseFloat(goldInputs.pricePerMace) || 0;
+      
+      const totalMace = (taels * 10) + mace;
+      const calculatedValue = totalMace * price;
+      
+      if (calculatedValue > 0) {
+        setNewAsset(prev => ({ ...prev, amount: calculatedValue.toString() }));
+      }
+    }
+  }, [goldInputs, newAsset.category]);
+
+  // Auto calculate Foreign Currency value
+  useEffect(() => {
+    if (newAsset.category === 'foreign_currency') {
+      const quantity = parseFloat(fcInputs.quantity) || 0;
+      const rate = parseFloat(fcInputs.exchangeRate) || 0;
+      
+      const calculatedValue = quantity * rate;
+      
+      if (calculatedValue > 0) {
+        setNewAsset(prev => ({ ...prev, amount: calculatedValue.toString() }));
+      }
+    }
+  }, [fcInputs, newAsset.category]);
+
   const handleLogin = (user: User) => setCurrentUser(user);
   const handleLogout = () => setCurrentUser(null);
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  // Logic: Update user profile (username & phone)
-  const handleUpdateUser = (newUsername: string, newPhoneNumber: string) => {
+  // Logic: Update user profile (username, phone & risk profile)
+  const updateUserStorage = (updatedUser: User) => {
+    setCurrentUser(updatedUser);
+    const usersStr = localStorage.getItem('dashboard_users');
+    if (usersStr) {
+      const users: User[] = JSON.parse(usersStr);
+      const updatedUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+      localStorage.setItem('dashboard_users', JSON.stringify(updatedUsers));
+    }
+  };
+
+  const handleUpdateUserInfo = (newUsername: string, newPhoneNumber: string) => {
     if (!currentUser) return;
-    
     const updatedUser = { 
       ...currentUser, 
       username: newUsername,
       phoneNumber: newPhoneNumber
     };
-    
-    // Update current session state
-    setCurrentUser(updatedUser);
-    
-    // Update localStorage users list
-    const usersStr = localStorage.getItem('dashboard_users');
-    if (usersStr) {
-      const users: User[] = JSON.parse(usersStr);
-      const updatedUsers = users.map(u => u.id === currentUser.id ? updatedUser : u);
-      localStorage.setItem('dashboard_users', JSON.stringify(updatedUsers));
-    }
+    updateUserStorage(updatedUser);
+  };
+
+  const handleSaveRiskProfile = (profileId: RiskLevel) => {
+    if (!currentUser) return;
+    const updatedUser = {
+      ...currentUser,
+      riskProfile: profileId
+    };
+    updateUserStorage(updatedUser);
   };
 
   // Logic mới: Lấy danh sách tài sản "hiện tại" (mới nhất theo Tên + Loại)
@@ -104,6 +162,8 @@ export default function App() {
     };
     setAssets([...assets, newItem]);
     setNewAsset({ name: '', category: 'stock', amount: '', date: today });
+    setGoldInputs({ taels: '', mace: '', pricePerMace: DEFAULT_GOLD_PRICE.toString() }); // Reset gold inputs
+    setFcInputs({ quantity: '', exchangeRate: DEFAULT_EXCHANGE_RATE.toString() }); // Reset FC inputs
     setIsAddModalOpen(false);
   };
 
@@ -217,7 +277,7 @@ export default function App() {
 
           <div className={`h-8 w-[1px] mx-1 ${isDarkMode ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
 
-          {/* Settings Button (Replaces direct Theme Toggle) */}
+          {/* Settings Button */}
           <button 
             onClick={() => setIsSettingsModalOpen(true)} 
             title="Cài đặt" 
@@ -239,7 +299,8 @@ export default function App() {
             assets={assets} 
             totalValue={totalValue} 
             isDark={isDarkMode} 
-            onDeleteAsset={handleDeleteAsset} 
+            onDeleteAsset={handleDeleteAsset}
+            currentUser={currentUser} // Pass currentUser to show risk profile
         />
       </div>
 
@@ -254,7 +315,8 @@ export default function App() {
         onClose={() => setIsAIModalOpen(false)} 
         assets={currentAssets} 
         totalValue={totalValue} 
-        isDark={isDarkMode} 
+        isDark={isDarkMode}
+        currentUser={currentUser} // Pass current user for AI context
       />
 
       <SettingsModal
@@ -263,7 +325,19 @@ export default function App() {
         isDark={isDarkMode}
         toggleTheme={toggleTheme}
         currentUser={currentUser}
-        onUpdateUser={handleUpdateUser}
+        onUpdateUser={handleUpdateUserInfo}
+        onOpenRiskSurvey={() => {
+            setIsSettingsModalOpen(false);
+            setIsRiskSurveyOpen(true);
+        }}
+      />
+
+      <RiskSurveyModal
+        isOpen={isRiskSurveyOpen}
+        onClose={() => setIsRiskSurveyOpen(false)}
+        isDark={isDarkMode}
+        onSaveProfile={handleSaveRiskProfile}
+        currentProfileId={currentUser.riskProfile}
       />
 
       <ExportReportModal
@@ -276,8 +350,8 @@ export default function App() {
 
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className={`rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white'}`}>
-            <div className={`p-6 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+          <div className={`rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white'}`}>
+            <div className={`p-6 border-b flex justify-between items-center ${isDarkMode ? 'border-slate-700' : 'border-gray-100'} sticky top-0 bg-inherit z-10 rounded-t-2xl`}>
               <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Thêm Tài Sản</h3>
               <button onClick={() => setIsAddModalOpen(false)} className={`${isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-400 hover:text-gray-600'}`}><X className="w-6 h-6" /></button>
             </div>
@@ -296,8 +370,91 @@ export default function App() {
                     {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                   </select>
               </div>
+
+              {/* Gold Calculator UI */}
+              {newAsset.category === 'gold' && (
+                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-yellow-900/10 border-yellow-500/30' : 'bg-yellow-50 border-yellow-200'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="w-4 h-4 text-yellow-500" />
+                    <p className={`text-xs font-bold uppercase ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>Quy đổi Vàng (1 Cây = 10 Chỉ)</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                     <div>
+                       <label className={`block text-xs mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Số Lượng (Cây/Lượng)</label>
+                       <input 
+                          type="number" 
+                          placeholder="0" 
+                          min="0"
+                          step="0.01"
+                          className={`w-full p-2 rounded border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`}
+                          value={goldInputs.taels}
+                          onChange={e => setGoldInputs({...goldInputs, taels: e.target.value})}
+                       />
+                     </div>
+                     <div>
+                       <label className={`block text-xs mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Số Lượng (Chỉ)</label>
+                       <input 
+                          type="number" 
+                          placeholder="0" 
+                          min="0"
+                          step="0.1"
+                          className={`w-full p-2 rounded border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`}
+                          value={goldInputs.mace}
+                          onChange={e => setGoldInputs({...goldInputs, mace: e.target.value})}
+                       />
+                     </div>
+                  </div>
+                  
+                  <div>
+                    <label className={`block text-xs mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Đơn giá 1 Chỉ (VND)</label>
+                    <input 
+                      type="number" 
+                      className={`w-full p-2 rounded border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`}
+                      value={goldInputs.pricePerMace}
+                      onChange={e => setGoldInputs({...goldInputs, pricePerMace: e.target.value})}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Foreign Currency Calculator UI */}
+              {newAsset.category === 'foreign_currency' && (
+                <div className={`p-4 rounded-xl border ${isDarkMode ? 'bg-teal-900/10 border-teal-500/30' : 'bg-teal-50 border-teal-200'}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="w-4 h-4 text-teal-500" />
+                    <p className={`text-xs font-bold uppercase ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}>Quy đổi Ngoại tệ</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                     <div>
+                       <label className={`block text-xs mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Số Lượng</label>
+                       <input 
+                          type="number" 
+                          placeholder="0" 
+                          min="0"
+                          step="0.01"
+                          className={`w-full p-2 rounded border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`}
+                          value={fcInputs.quantity}
+                          onChange={e => setFcInputs({...fcInputs, quantity: e.target.value})}
+                       />
+                     </div>
+                     <div>
+                       <label className={`block text-xs mb-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Tỷ giá (VND)</label>
+                       <input 
+                          type="number" 
+                          placeholder="0" 
+                          className={`w-full p-2 rounded border outline-none ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`}
+                          value={fcInputs.exchangeRate}
+                          onChange={e => setFcInputs({...fcInputs, exchangeRate: e.target.value})}
+                       />
+                     </div>
+                  </div>
+                </div>
+              )}
+
               <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Giá trị (VND)</label>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Giá trị (VND) {(newAsset.category === 'gold' || newAsset.category === 'foreign_currency') && <span className="text-xs font-normal text-yellow-500">(Tự động tính)</span>}</label>
                   <input type="number" required min="0" className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-gray-300'}`} value={newAsset.amount} onChange={(e) => setNewAsset({ ...newAsset, amount: e.target.value })} />
               </div>
               <div className="pt-4 flex gap-3">

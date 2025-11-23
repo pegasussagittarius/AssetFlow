@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Settings, X, RefreshCw, Save } from 'lucide-react';
-import { Asset, AIConfig, AIProviderType } from '../types';
+import { Bot, Settings, X, RefreshCw, Save, Key, ExternalLink, Eye, EyeOff } from 'lucide-react';
+import { Asset, AIConfig, AIProviderType, User } from '../types';
 import { AI_PROVIDERS } from '../constants';
 import { generateFinancialAnalysis } from '../services/aiService';
 
@@ -10,23 +10,24 @@ interface AIAdvisorModalProps {
   assets: Asset[];
   totalValue: number;
   isDark: boolean;
+  currentUser?: User | null;
 }
 
-const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets, totalValue, isDark }) => {
+const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets, totalValue, isDark, currentUser }) => {
   const [analysis, setAnalysis] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showKey, setShowKey] = useState(false);
 
   const [config, setConfig] = useState<AIConfig>(() => {
     const saved = localStorage.getItem('ai_config');
-    const defaultState: AIConfig = { provider: 'rule_based' };
+    const defaultState: AIConfig = { provider: 'rule_based', apiKey: '' };
     
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Fallback if saved provider is ollama
       if (parsed.provider === 'ollama') return defaultState;
-      return parsed;
+      return { ...defaultState, ...parsed };
     }
     return defaultState;
   });
@@ -41,7 +42,7 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets
     setErrorMsg('');
 
     try {
-      const result = await generateFinancialAnalysis(assets, totalValue, config);
+      const result = await generateFinancialAnalysis(assets, totalValue, config, currentUser);
       setAnalysis(result);
     } catch (err: any) {
       setErrorMsg(err.message || "Đã xảy ra lỗi không xác định");
@@ -52,7 +53,13 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets
 
   useEffect(() => {
     if (isOpen && !analysis && !showSettings) {
-      callAI();
+      if (config.provider === 'rule_based') {
+          callAI();
+      } else if (config.provider === 'gemini' && (config.apiKey || process.env.API_KEY)) {
+          callAI();
+      } else {
+          setShowSettings(true);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -96,44 +103,92 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
           {showSettings ? (
-            <div className="space-y-4">
-               <h4 className={`font-bold border-b pb-2 ${isDark ? 'text-white border-slate-700' : 'text-slate-900 border-gray-200'}`}>Cấu hình Nhà cung cấp AI</h4>
-               
-               <div className="grid grid-cols-1 gap-3">
-                 <label className={`block text-sm font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Chọn nguồn AI</label>
-                 <div className="grid grid-cols-2 gap-2">
-                    {AI_PROVIDERS.map(p => (
-                        <button
-                            key={p.id}
-                            onClick={() => setConfig({...config, provider: p.id as AIProviderType})}
-                            className={`p-3 rounded-lg border flex items-center gap-2 text-sm font-medium transition-all ${
-                                config.provider === p.id 
-                                ? 'border-blue-500 bg-blue-500/10 text-blue-500' 
-                                : isDark ? 'border-slate-600 bg-slate-800 text-slate-400' : 'border-gray-200 bg-white text-gray-600'
-                            }`}
-                        >
-                            <p.icon className="w-4 h-4" />
-                            {p.name}
-                        </button>
-                    ))}
-                 </div>
+            <div className="space-y-6">
+               <div>
+                  <h4 className={`font-bold border-b pb-2 mb-4 ${isDark ? 'text-white border-slate-700' : 'text-slate-900 border-gray-200'}`}>Cấu hình Nhà cung cấp AI</h4>
+                  
+                  <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Chọn nguồn AI</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {AI_PROVIDERS.map(p => (
+                          <button
+                              key={p.id}
+                              onClick={() => setConfig({...config, provider: p.id as AIProviderType})}
+                              className={`p-3 rounded-lg border flex items-center gap-3 text-sm font-medium transition-all ${
+                                  config.provider === p.id 
+                                  ? 'border-blue-500 bg-blue-500/10 text-blue-500 ring-1 ring-blue-500' 
+                                  : isDark ? 'border-slate-600 bg-slate-800 text-slate-400 hover:bg-slate-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                          >
+                              <div className={`p-2 rounded-full ${config.provider === p.id ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                <p.icon className="w-4 h-4" />
+                              </div>
+                              {p.name}
+                          </button>
+                      ))}
+                  </div>
                </div>
 
                {config.provider === 'gemini' && (
-                 <div className={`p-4 rounded-lg border ${isDark ? 'bg-blue-500/10 border-blue-500/30 text-blue-200' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
-                    <p className="text-sm flex items-center gap-2">
-                       <Bot className="w-4 h-4"/>
-                       Gemini AI sử dụng API Key từ cấu hình hệ thống. Đảm bảo môi trường triển khai đã có biến <code>API_KEY</code>.
-                    </p>
+                 <div className="animate-in fade-in slide-in-from-top-2">
+                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                        Gemini API Key
+                        <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Key className="h-4 w-4 text-slate-400" />
+                        </div>
+                        <input
+                            type={showKey ? "text" : "password"}
+                            value={config.apiKey || ''}
+                            onChange={(e) => setConfig({...config, apiKey: e.target.value})}
+                            placeholder="Nhập API Key của bạn (bắt đầu bằng AIza...)"
+                            className={`block w-full pl-10 pr-10 py-3 text-sm rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none transition-colors ${
+                                isDark 
+                                ? 'bg-slate-900 border-slate-600 text-white placeholder-slate-500' 
+                                : 'bg-slate-50 border-gray-300 text-gray-900'
+                            }`}
+                        />
+                         <button
+                            type="button"
+                            onClick={() => setShowKey(!showKey)}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                            {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                         <a 
+                            href="https://aistudio.google.com/app/apikey" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-500 hover:underline flex items-center gap-1"
+                         >
+                            <ExternalLink className="w-3 h-3" /> Lấy API Key miễn phí tại Google AI Studio
+                         </a>
+                    </div>
+
+                    <div className={`mt-4 p-3 rounded-lg border text-xs ${isDark ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-200' : 'bg-yellow-50 border-yellow-200 text-yellow-800'}`}>
+                        <p>Lưu ý: API Key của bạn sẽ được lưu an toàn trên trình duyệt của thiết bị này. Chúng tôi không thu thập hoặc chia sẻ khóa của bạn.</p>
+                    </div>
                  </div>
                )}
 
-               <div className="pt-2">
+               <div className="pt-4 border-t border-dashed border-slate-600/30">
                  <button 
-                    onClick={() => { setShowSettings(false); callAI(); }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium flex items-center justify-center gap-2"
+                    onClick={() => { 
+                        if (config.provider === 'gemini' && !config.apiKey && !process.env.API_KEY) {
+                            setErrorMsg("Vui lòng nhập API Key để sử dụng Gemini.");
+                            return;
+                        }
+                        setShowSettings(false); 
+                        callAI(); 
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 transition-transform active:scale-95"
                  >
-                    <Save className="w-4 h-4" /> Lưu & Phân Tích
+                    <Save className="w-4 h-4" /> Lưu Cấu Hình & Phân Tích Ngay
                  </button>
                </div>
 
@@ -142,18 +197,26 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets
             <>
               {isAnalyzing ? (
                 <div className="flex flex-col items-center justify-center py-10 space-y-4">
-                  <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
-                  <p className={`${isDark ? 'text-slate-300' : 'text-slate-600'} animate-pulse`}>
+                  <div className="relative">
+                      <div className="w-12 h-12 border-4 border-blue-200 rounded-full animate-spin border-t-blue-500"></div>
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                        <Bot className="w-5 h-5 text-blue-500" />
+                      </div>
+                  </div>
+                  <p className={`${isDark ? 'text-slate-300' : 'text-slate-600'} animate-pulse text-sm`}>
                     Đang gửi dữ liệu đến {AI_PROVIDERS.find(p => p.id === config.provider)?.name}...
                   </p>
                 </div>
               ) : errorMsg ? (
-                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center">
-                    <p className="text-red-500 font-medium mb-2">Đã xảy ra lỗi</p>
-                    <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{errorMsg}</p>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-full mb-4">
+                        <X className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h4 className={`text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Không thể phân tích</h4>
+                    <p className={`text-sm text-center max-w-xs mb-6 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{errorMsg}</p>
                     <button 
                         onClick={() => setShowSettings(true)}
-                        className="mt-3 text-blue-500 hover:underline text-sm"
+                        className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg font-medium text-sm transition-colors"
                     >
                         Kiểm tra cấu hình
                     </button>
@@ -170,7 +233,7 @@ const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({ isOpen, onClose, assets
         </div>
 
         {/* Footer */}
-        {!showSettings && (
+        {!showSettings && !isAnalyzing && !errorMsg && (
             <div className={`p-4 border-t ${isDark ? 'border-slate-700' : 'border-gray-100'} flex justify-end`}>
             <button 
                 onClick={callAI}
