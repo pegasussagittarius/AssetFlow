@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight } from 'lucide-react';
+import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight, CreditCard } from 'lucide-react';
 import { User as UserType } from '../types';
 import { RISK_PROFILES } from '../constants';
 
@@ -9,7 +9,7 @@ interface SettingsModalProps {
   isDark: boolean;
   toggleTheme: () => void;
   currentUser: UserType;
-  onUpdateUser: (newUsername: string, newPhoneNumber: string) => void;
+  onUpdateUser: (newUsername: string, newPhoneNumber: string, creditScore?: number) => void;
   onOpenRiskSurvey: () => void;
 }
 
@@ -24,6 +24,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [username, setUsername] = useState(currentUser.username);
   const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber);
+  const [creditScore, setCreditScore] = useState<string>(currentUser.creditScore ? currentUser.creditScore.toString() : '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -32,6 +33,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     if (isOpen) {
       setUsername(currentUser.username);
       setPhoneNumber(currentUser.phoneNumber);
+      setCreditScore(currentUser.creditScore ? currentUser.creditScore.toString() : '');
       setError('');
       setSuccess('');
     }
@@ -46,6 +48,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const trimmedName = username.trim();
     const trimmedPhone = phoneNumber.trim();
+    const parsedScore = creditScore ? parseInt(creditScore) : undefined;
 
     if (!trimmedName) {
       setError('Tên hiển thị không được để trống');
@@ -58,7 +61,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }
     
     // Check if no changes were made
-    if (trimmedName === currentUser.username && trimmedPhone === currentUser.phoneNumber) {
+    if (trimmedName === currentUser.username && trimmedPhone === currentUser.phoneNumber && parsedScore === currentUser.creditScore) {
         return;
     }
 
@@ -82,7 +85,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     }
 
-    onUpdateUser(trimmedName, trimmedPhone);
+    onUpdateUser(trimmedName, trimmedPhone, parsedScore);
     setSuccess('Cập nhật thông tin thành công!');
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -211,6 +214,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                     placeholder="Nhập số điện thoại"
                   />
                   <Phone className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Điểm tín dụng CIC
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    className={`w-full p-3 pl-10 rounded-lg border outline-none transition-all ${
+                       isDark 
+                        ? 'bg-slate-900 border-slate-600 focus:border-blue-500 text-white placeholder-slate-500' 
+                        : 'bg-slate-50 border-gray-300 focus:border-blue-500 text-gray-900'
+                    }`}
+                    value={creditScore}
+                    onChange={(e) => setCreditScore(e.target.value)}
+                    placeholder="Ví dụ: 650"
+                  />
+                  <CreditCard className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
                 </div>
               </div>
 

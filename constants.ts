@@ -1,5 +1,5 @@
 import { Bot, Sparkles } from 'lucide-react';
-import { AssetCategory, AIProvider, RiskProfileDef, SurveyQuestion } from './types';
+import { AssetCategory, AIProvider, RiskProfileDef, SurveyQuestion, AssetTermDef } from './types';
 
 export const DEFAULT_GOLD_PRICE = 8500000; // Giá ước tính 1 chỉ vàng (VND)
 export const DEFAULT_EXCHANGE_RATE = 25450; // Giá ước tính 1 USD (VND)
@@ -21,6 +21,13 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   { id: 'crypto', name: 'Tài sản mã hoá', color: '#06B6D4', risk: 'very_high' }, 
   { id: 'cash', name: 'Tiền mặt', color: '#64748B', risk: 'safe' }, 
   { id: 'other', name: 'Khác', color: '#A3A3A3', risk: 'medium' },
+];
+
+export const ASSET_TERMS: AssetTermDef[] = [
+  { id: 'short_term', name: 'Ngắn hạn (<1 năm)', color: '#3b82f6' }, // Blue
+  { id: 'medium_term', name: 'Trung hạn (1-3 năm)', color: '#f59e0b' }, // Amber/Orange
+  { id: 'long_term', name: 'Dài hạn (>3 năm)', color: '#8b5cf6' }, // Purple
+  { id: 'emergency', name: 'Quỹ dự phòng', color: '#10b981' }, // Emerald/Green
 ];
 
 export const AI_PROVIDERS: AIProvider[] = [

@@ -6,6 +6,7 @@ export interface User {
   pin: string;
   phoneNumber: string;
   riskProfile?: RiskLevel; // Thêm trường hồ sơ rủi ro
+  creditScore?: number; // Mới: Điểm tín dụng CIC
 }
 
 export type AssetCategoryType = 
@@ -26,6 +27,9 @@ export type AssetCategoryType =
   | 'cash' 
   | 'other';
 
+// Mới: Định nghĩa các loại kỳ hạn/mục đích
+export type AssetTermType = 'short_term' | 'medium_term' | 'long_term' | 'emergency';
+
 export interface AssetCategory {
   id: AssetCategoryType;
   name: string;
@@ -33,10 +37,18 @@ export interface AssetCategory {
   risk: 'safe' | 'low' | 'medium' | 'high' | 'very_high';
 }
 
+export interface AssetTermDef {
+  id: AssetTermType;
+  name: string;
+  color: string;
+}
+
 export interface Asset {
   id: string;
   name: string;
   category: AssetCategoryType;
+  term: AssetTermType; 
+  plan?: string; // Mới: Tên kế hoạch (tùy chọn)
   amount: number;
   date: string;
 }

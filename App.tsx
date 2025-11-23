@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText, Calculator } from 'lucide-react';
+import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText, Calculator, CreditCard } from 'lucide-react';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import AIAdvisorModal from './components/AIModal';
 import SettingsModal from './components/SettingsModal';
 import ExportReportModal from './components/ExportReportModal';
 import RiskSurveyModal from './components/RiskSurveyModal';
-import { Asset, User, AssetCategoryType, RiskLevel } from './types';
-import { ASSET_CATEGORIES, DEFAULT_GOLD_PRICE, DEFAULT_EXCHANGE_RATE } from './constants';
+import CICInfoModal from './components/CICInfoModal';
+import { Asset, User, AssetCategoryType, RiskLevel, AssetTermType } from './types';
+import { ASSET_CATEGORIES, ASSET_TERMS, DEFAULT_GOLD_PRICE, DEFAULT_EXCHANGE_RATE } from './constants';
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -18,12 +19,13 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isRiskSurveyOpen, setIsRiskSurveyOpen] = useState(false);
+  const [isCICInfoOpen, setIsCICInfoOpen] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const today = new Date().toISOString().split('T')[0];
-  const [newAsset, setNewAsset] = useState<{ name: string; category: AssetCategoryType; amount: string; date: string }>({ 
-    name: '', category: 'stock', amount: '', date: today 
+  const [newAsset, setNewAsset] = useState<{ name: string; category: AssetCategoryType; term: AssetTermType; plan: string; amount: string; date: string }>({ 
+    name: '', category: 'stock', term: 'short_term', plan: '', amount: '', date: today 
   });
 
   // State hỗ trợ tính toán Vàng
@@ -106,12 +108,13 @@ export default function App() {
     }
   };
 
-  const handleUpdateUserInfo = (newUsername: string, newPhoneNumber: string) => {
+  const handleUpdateUserInfo = (newUsername: string, newPhoneNumber: string, creditScore?: number) => {
     if (!currentUser) return;
     const updatedUser = { 
       ...currentUser, 
       username: newUsername,
-      phoneNumber: newPhoneNumber
+      phoneNumber: newPhoneNumber,
+      creditScore: creditScore
     };
     updateUserStorage(updatedUser);
   };
@@ -157,11 +160,13 @@ export default function App() {
       id: Date.now().toString(), 
       name: newAsset.name, 
       category: newAsset.category, 
+      term: newAsset.term,
+      plan: newAsset.plan, // Lưu tên kế hoạch
       amount: parseFloat(newAsset.amount), 
       date: newAsset.date 
     };
     setAssets([...assets, newItem]);
-    setNewAsset({ name: '', category: 'stock', amount: '', date: today });
+    setNewAsset({ name: '', category: 'stock', term: 'short_term', plan: '', amount: '', date: today });
     setGoldInputs({ taels: '', mace: '', pricePerMace: DEFAULT_GOLD_PRICE.toString() }); // Reset gold inputs
     setFcInputs({ quantity: '', exchangeRate: DEFAULT_EXCHANGE_RATE.toString() }); // Reset FC inputs
     setIsAddModalOpen(false);
@@ -237,9 +242,24 @@ export default function App() {
             <Wallet className="w-8 h-8 text-blue-600" />
             Quản Lý Tài Sản
           </h1>
-          <p className={`mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} flex items-center gap-2`}>
-            Xin chào, <span className="font-bold text-blue-500">{currentUser.username}</span>
-          </p>
+          <div className="mt-2">
+            <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'} flex items-center gap-2`}>
+              Xin chào, <span className="font-bold text-blue-500">{currentUser.username}</span>
+            </p>
+            {currentUser.creditScore && (
+              <button 
+                onClick={() => setIsCICInfoOpen(true)}
+                title="Xem chi tiết xếp hạng tín dụng"
+                className={`inline-flex items-center gap-2 px-3 py-1.5 mt-2 rounded-lg border shadow-sm transition-all hover:scale-105 cursor-pointer ${
+                isDarkMode 
+                  ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700' 
+                  : 'bg-white border-blue-200 text-blue-700 hover:bg-blue-50'
+              }`}>
+                <CreditCard className="w-5 h-5" />
+                <span className="text-sm font-medium">Điểm CIC: <span className="text-lg font-bold ml-1">{currentUser.creditScore}</span></span>
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
           {/* Hidden File Input for Import */}
@@ -339,6 +359,13 @@ export default function App() {
         onSaveProfile={handleSaveRiskProfile}
         currentProfileId={currentUser.riskProfile}
       />
+      
+      <CICInfoModal
+        isOpen={isCICInfoOpen}
+        onClose={() => setIsCICInfoOpen(false)}
+        isDark={isDarkMode}
+        currentScore={currentUser.creditScore}
+      />
 
       <ExportReportModal
         isOpen={isExportModalOpen}
@@ -364,11 +391,31 @@ export default function App() {
                   <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Tên tài sản</label>
                   <input type="text" required className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-gray-300'}`} value={newAsset.name} onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })} />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Loại tài sản</label>
+                      <select className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-gray-300'}`} value={newAsset.category} onChange={(e) => setNewAsset({ ...newAsset, category: e.target.value as AssetCategoryType })}>
+                        {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                      </select>
+                  </div>
+                  <div>
+                      <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Kỳ hạn</label>
+                      <select className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-gray-300'}`} value={newAsset.term} onChange={(e) => setNewAsset({ ...newAsset, term: e.target.value as AssetTermType })}>
+                        {ASSET_TERMS.map(term => <option key={term.id} value={term.id}>{term.name}</option>)}
+                      </select>
+                  </div>
+              </div>
+
               <div>
-                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Loại tài sản</label>
-                  <select className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white' : 'bg-white border-gray-300'}`} value={newAsset.category} onChange={(e) => setNewAsset({ ...newAsset, category: e.target.value as AssetCategoryType })}>
-                    {ASSET_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                  </select>
+                  <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>Kế hoạch (Tùy chọn)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ví dụ: Mua nhà, Đám cưới, Nghỉ hưu..." 
+                    className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${isDarkMode ? 'bg-slate-900 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300'}`} 
+                    value={newAsset.plan || ''} 
+                    onChange={(e) => setNewAsset({ ...newAsset, plan: e.target.value })} 
+                  />
+                  <p className={`text-xs mt-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Điền tên để thêm tài sản vào mục "Kế hoạch". Bỏ trống nếu không cần.</p>
               </div>
 
               {/* Gold Calculator UI */}
