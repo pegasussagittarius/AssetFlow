@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText, Calculator, CreditCard } from 'lucide-react';
+import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText, Calculator, CreditCard, User as UserIcon } from 'lucide-react';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import AIAdvisorModal from './components/AIModal';
@@ -108,13 +108,14 @@ export default function App() {
     }
   };
 
-  const handleUpdateUserInfo = (newUsername: string, newPhoneNumber: string, creditScore?: number) => {
+  const handleUpdateUserInfo = (newUsername: string, newPhoneNumber: string, creditScore?: number, avatar?: string) => {
     if (!currentUser) return;
     const updatedUser = { 
       ...currentUser, 
       username: newUsername,
       phoneNumber: newPhoneNumber,
-      creditScore: creditScore
+      creditScore: creditScore,
+      avatar: avatar
     };
     updateUserStorage(updatedUser);
   };
@@ -242,23 +243,37 @@ export default function App() {
             <Wallet className="w-8 h-8 text-blue-600" />
             Quản Lý Tài Sản
           </h1>
-          <div className="mt-2">
-            <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'} flex items-center gap-2`}>
-              Xin chào, <span className="font-bold text-blue-500">{currentUser.username}</span>
-            </p>
-            {currentUser.creditScore && (
-              <button 
-                onClick={() => setIsCICInfoOpen(true)}
-                title="Xem chi tiết xếp hạng tín dụng"
-                className={`inline-flex items-center gap-2 px-3 py-1.5 mt-2 rounded-lg border shadow-sm transition-all hover:scale-105 cursor-pointer ${
-                isDarkMode 
-                  ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700' 
-                  : 'bg-white border-blue-200 text-blue-700 hover:bg-blue-50'
-              }`}>
-                <CreditCard className="w-5 h-5" />
-                <span className="text-sm font-medium">Điểm CIC: <span className="text-lg font-bold ml-1">{currentUser.creditScore}</span></span>
-              </button>
-            )}
+          <div className="mt-2 flex items-center gap-3">
+             {currentUser.avatar ? (
+                <img 
+                  src={currentUser.avatar} 
+                  alt="Avatar" 
+                  className="w-12 h-12 rounded-full object-cover border-2 border-blue-500 shadow-sm" 
+                />
+             ) : (
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${isDarkMode ? 'bg-slate-800 border-slate-600' : 'bg-blue-50 border-blue-100'}`}>
+                   <UserIcon className={`w-6 h-6 ${isDarkMode ? 'text-slate-400' : 'text-blue-500'}`} />
+                </div>
+             )}
+            
+            <div>
+              <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Xin chào, <span className="font-bold text-blue-500">{currentUser.username}</span>
+              </p>
+              {currentUser.creditScore && (
+                <button 
+                  onClick={() => setIsCICInfoOpen(true)}
+                  title="Xem chi tiết xếp hạng tín dụng"
+                  className={`inline-flex items-center gap-2 px-2 py-1 mt-1 rounded text-xs font-medium border shadow-sm transition-all hover:scale-105 cursor-pointer ${
+                  isDarkMode 
+                    ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700' 
+                    : 'bg-white border-blue-200 text-blue-700 hover:bg-blue-50'
+                }`}>
+                  <CreditCard className="w-3 h-3" />
+                  <span>Điểm CIC: <span className="font-bold">{currentUser.creditScore}</span></span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">

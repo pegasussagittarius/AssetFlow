@@ -7,6 +7,7 @@ export interface User {
   phoneNumber: string;
   riskProfile?: RiskLevel; // Thêm trường hồ sơ rủi ro
   creditScore?: number; // Mới: Điểm tín dụng CIC
+  avatar?: string; // Mới: Ảnh đại diện (Base64 string)
 }
 
 export type AssetCategoryType = 

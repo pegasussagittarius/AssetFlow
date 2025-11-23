@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight, CreditCard } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight, CreditCard, Camera } from 'lucide-react';
 import { User as UserType } from '../types';
 import { RISK_PROFILES } from '../constants';
 
@@ -9,7 +9,7 @@ interface SettingsModalProps {
   isDark: boolean;
   toggleTheme: () => void;
   currentUser: UserType;
-  onUpdateUser: (newUsername: string, newPhoneNumber: string, creditScore?: number) => void;
+  onUpdateUser: (newUsername: string, newPhoneNumber: string, creditScore?: number, avatar?: string) => void;
   onOpenRiskSurvey: () => void;
 }
 
@@ -25,8 +25,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [username, setUsername] = useState(currentUser.username);
   const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber);
   const [creditScore, setCreditScore] = useState<string>(currentUser.creditScore ? currentUser.creditScore.toString() : '');
+  const [avatar, setAvatar] = useState<string>(currentUser.avatar || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset form state when modal opens/closes or user changes
   useEffect(() => {
@@ -34,12 +37,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       setUsername(currentUser.username);
       setPhoneNumber(currentUser.phoneNumber);
       setCreditScore(currentUser.creditScore ? currentUser.creditScore.toString() : '');
+      setAvatar(currentUser.avatar || '');
       setError('');
       setSuccess('');
     }
   }, [isOpen, currentUser]);
 
   const currentRiskProfile = RISK_PROFILES.find(p => p.id === currentUser.riskProfile);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 500KB to prevent localStorage issues)
+    if (file.size > 500 * 1024) {
+      setError('Ảnh quá lớn. Vui lòng chọn ảnh dưới 500KB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      setAvatar(result);
+      setError('');
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSaveInfo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +88,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }
     
     // Check if no changes were made
-    if (trimmedName === currentUser.username && trimmedPhone === currentUser.phoneNumber && parsedScore === currentUser.creditScore) {
+    if (trimmedName === currentUser.username && 
+        trimmedPhone === currentUser.phoneNumber && 
+        parsedScore === currentUser.creditScore &&
+        avatar === currentUser.avatar) {
         return;
     }
 
@@ -85,7 +115,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         }
     }
 
-    onUpdateUser(trimmedName, trimmedPhone, parsedScore);
+    onUpdateUser(trimmedName, trimmedPhone, parsedScore, avatar);
     setSuccess('Cập nhật thông tin thành công!');
     setTimeout(() => setSuccess(''), 3000);
   };
@@ -109,74 +139,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
           
-          {/* Section: Hồ sơ rủi ro */}
-          <div>
-            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-              Hồ sơ đầu tư
-            </h4>
-            <button 
-                onClick={onOpenRiskSurvey}
-                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all group ${
-                    isDark 
-                    ? 'bg-slate-900/50 border-slate-600 hover:bg-slate-800' 
-                    : 'bg-white border-gray-200 hover:bg-gray-50'
-                }`}
-            >
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
-                        <Target className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                        <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Hồ sơ rủi ro</p>
-                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'} mt-0.5`}>
-                           {currentRiskProfile ? (
-                               <span style={{ color: currentRiskProfile.color }} className="font-bold">{currentRiskProfile.name}</span>
-                           ) : 'Chưa thiết lập'}
-                        </p>
-                    </div>
-                </div>
-                <ChevronRight className={`w-5 h-5 transition-transform group-hover:translate-x-1 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
-            </button>
-          </div>
-
-          {/* Section: Giao diện */}
-          <div>
-            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-              Giao diện ứng dụng
-            </h4>
-            <button 
-              onClick={toggleTheme}
-              className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                isDark 
-                  ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500' 
-                  : 'bg-slate-50 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-white text-orange-500 shadow-sm'}`}>
-                  {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                </div>
-                <div className="text-left">
-                  <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isDark ? 'Chế độ Tối' : 'Chế độ Sáng'}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {isDark ? 'Dễ chịu cho mắt vào ban đêm' : 'Sáng sủa và rõ ràng'}
-                  </p>
-                </div>
-              </div>
-              <div className={`w-10 h-5 rounded-full relative transition-colors ${isDark ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-200 ${isDark ? 'left-6' : 'left-1'}`} />
-              </div>
-            </button>
-          </div>
-
-          {/* Section: Tài khoản */}
+          {/* Section: Tài khoản & Avatar */}
           <div>
              <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
               Thông tin tài khoản
             </h4>
-            <form onSubmit={handleSaveInfo} className="space-y-4">
+            
+            <form onSubmit={handleSaveInfo} className="space-y-6">
+              {/* Avatar Upload */}
+              <div className="flex justify-center mb-6">
+                <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
+                   {avatar ? (
+                     <img 
+                       src={avatar} 
+                       alt="Avatar" 
+                       className={`w-24 h-24 rounded-full object-cover border-4 ${isDark ? 'border-slate-700' : 'border-slate-100'}`} 
+                     />
+                   ) : (
+                     <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-400' : 'bg-slate-100 border-white text-slate-400'}`}>
+                       <User className="w-12 h-12" />
+                     </div>
+                   )}
+                   <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Camera className="w-8 h-8 text-white" />
+                   </div>
+                   <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handleFileChange}
+                   />
+                </div>
+              </div>
+
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   Tên hiển thị
@@ -257,6 +253,68 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Save className="w-4 h-4" /> Lưu thay đổi
               </button>
             </form>
+          </div>
+
+          {/* Section: Hồ sơ rủi ro */}
+          <div>
+            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+              Hồ sơ đầu tư
+            </h4>
+            <button 
+                onClick={onOpenRiskSurvey}
+                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all group ${
+                    isDark 
+                    ? 'bg-slate-900/50 border-slate-600 hover:bg-slate-800' 
+                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
+                        <Target className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                        <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Hồ sơ rủi ro</p>
+                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'} mt-0.5`}>
+                           {currentRiskProfile ? (
+                               <span style={{ color: currentRiskProfile.color }} className="font-bold">{currentRiskProfile.name}</span>
+                           ) : 'Chưa thiết lập'}
+                        </p>
+                    </div>
+                </div>
+                <ChevronRight className={`w-5 h-5 transition-transform group-hover:translate-x-1 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
+            </button>
+          </div>
+
+          {/* Section: Giao diện */}
+          <div>
+            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+              Giao diện ứng dụng
+            </h4>
+            <button 
+              onClick={toggleTheme}
+              className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
+                isDark 
+                  ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500' 
+                  : 'bg-slate-50 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-white text-orange-500 shadow-sm'}`}>
+                  {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                </div>
+                <div className="text-left">
+                  <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {isDark ? 'Chế độ Tối' : 'Chế độ Sáng'}
+                  </p>
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {isDark ? 'Dễ chịu cho mắt vào ban đêm' : 'Sáng sủa và rõ ràng'}
+                  </p>
+                </div>
+              </div>
+              <div className={`w-10 h-5 rounded-full relative transition-colors ${isDark ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-200 ${isDark ? 'left-6' : 'left-1'}`} />
+              </div>
+            </button>
           </div>
 
         </div>
