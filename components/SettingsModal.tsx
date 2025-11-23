@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Moon, Sun, User, Save, CheckCircle } from 'lucide-react';
+import { X, Moon, Sun, User, Save, CheckCircle, Phone } from 'lucide-react';
 import { User as UserType } from '../types';
 
 interface SettingsModalProps {
@@ -8,7 +8,7 @@ interface SettingsModalProps {
   isDark: boolean;
   toggleTheme: () => void;
   currentUser: UserType;
-  onUpdateUser: (newUsername: string) => void;
+  onUpdateUser: (newUsername: string, newPhoneNumber: string) => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -20,6 +20,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateUser 
 }) => {
   const [username, setUsername] = useState(currentUser.username);
+  const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -27,24 +28,57 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setUsername(currentUser.username);
+      setPhoneNumber(currentUser.phoneNumber);
       setError('');
       setSuccess('');
     }
   }, [isOpen, currentUser]);
 
-  const handleSaveName = (e: React.FormEvent) => {
+  const handleSaveInfo = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) {
+    setError('');
+    setSuccess('');
+
+    const trimmedName = username.trim();
+    const trimmedPhone = phoneNumber.trim();
+
+    if (!trimmedName) {
       setError('Tên hiển thị không được để trống');
       return;
     }
+
+    if (!trimmedPhone) {
+        setError('Số điện thoại không được để trống');
+        return;
+    }
     
-    if (username.trim() === currentUser.username) {
+    // Check if no changes were made
+    if (trimmedName === currentUser.username && trimmedPhone === currentUser.phoneNumber) {
         return;
     }
 
-    onUpdateUser(username.trim());
-    setSuccess('Đã cập nhật tên thành công!');
+    // Check validation against other users in localStorage
+    const usersStr = localStorage.getItem('dashboard_users');
+    if (usersStr) {
+        const users: UserType[] = JSON.parse(usersStr);
+        
+        // Check if phone number is taken by ANOTHER user
+        const phoneExists = users.some(u => u.id !== currentUser.id && u.phoneNumber === trimmedPhone);
+        if (phoneExists) {
+            setError('Số điện thoại này đã được sử dụng bởi tài khoản khác');
+            return;
+        }
+
+        // Check if username is taken by ANOTHER user (optional but recommended)
+        const usernameExists = users.some(u => u.id !== currentUser.id && u.username === trimmedName);
+        if (usernameExists) {
+            setError('Tên đăng nhập này đã được sử dụng');
+            return;
+        }
+    }
+
+    onUpdateUser(trimmedName, trimmedPhone);
+    setSuccess('Cập nhật thông tin thành công!');
     setTimeout(() => setSuccess(''), 3000);
   };
 
@@ -104,7 +138,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
              <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
               Thông tin tài khoản
             </h4>
-            <form onSubmit={handleSaveName} className="space-y-3">
+            <form onSubmit={handleSaveInfo} className="space-y-4">
               <div>
                 <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   Tên hiển thị
@@ -125,10 +159,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {error && <p className="text-red-500 text-xs">{error}</p>}
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Số điện thoại
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    className={`w-full p-3 pl-10 rounded-lg border outline-none transition-all ${
+                       isDark 
+                        ? 'bg-slate-900 border-slate-600 focus:border-blue-500 text-white' 
+                        : 'bg-slate-50 border-gray-300 focus:border-blue-500 text-gray-900'
+                    }`}
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="Nhập số điện thoại"
+                  />
+                  <Phone className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
+                </div>
+              </div>
+
+              {error && <p className="text-red-500 text-xs bg-red-500/10 p-2 rounded">{error}</p>}
               
               {success && (
-                <div className="flex items-center gap-2 text-emerald-500 text-sm bg-emerald-500/10 p-2 rounded-lg">
+                <div className="flex items-center gap-2 text-emerald-500 text-sm bg-emerald-500/10 p-2 rounded-lg animate-in fade-in">
                   <CheckCircle className="w-4 h-4" /> {success}
                 </div>
               )}

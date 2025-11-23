@@ -43,11 +43,15 @@ export default function App() {
   const handleLogout = () => setCurrentUser(null);
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-  // Logic: Update username
-  const handleUpdateUser = (newUsername: string) => {
+  // Logic: Update user profile (username & phone)
+  const handleUpdateUser = (newUsername: string, newPhoneNumber: string) => {
     if (!currentUser) return;
     
-    const updatedUser = { ...currentUser, username: newUsername };
+    const updatedUser = { 
+      ...currentUser, 
+      username: newUsername,
+      phoneNumber: newPhoneNumber
+    };
     
     // Update current session state
     setCurrentUser(updatedUser);
