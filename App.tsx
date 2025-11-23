@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings } from 'lucide-react';
+import { Wallet, LogOut, Plus, X, Sparkles, Download, Upload, Settings, FileText } from 'lucide-react';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import AIAdvisorModal from './components/AIModal';
 import SettingsModal from './components/SettingsModal';
+import ExportReportModal from './components/ExportReportModal';
 import { Asset, User, AssetCategoryType } from './types';
 import { ASSET_CATEGORIES } from './constants';
 
@@ -14,6 +15,7 @@ export default function App() {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -190,8 +192,16 @@ export default function App() {
           />
 
           <button 
+            onClick={() => setIsExportModalOpen(true)}
+            title="Xuất báo cáo PDF"
+            className={`p-2.5 rounded-lg transition-colors border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-rose-400 hover:bg-slate-700' : 'bg-white border-gray-200 text-rose-600 hover:bg-gray-50'}`}
+          >
+            <FileText className="w-5 h-5" />
+          </button>
+
+          <button 
             onClick={handleExportData} 
-            title="Xuất dữ liệu (Backup)"
+            title="Xuất dữ liệu (Backup JSON)"
             className={`p-2.5 rounded-lg transition-colors border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-emerald-400 hover:bg-slate-700' : 'bg-white border-gray-200 text-emerald-600 hover:bg-gray-50'}`}
           >
             <Download className="w-5 h-5" />
@@ -254,6 +264,14 @@ export default function App() {
         toggleTheme={toggleTheme}
         currentUser={currentUser}
         onUpdateUser={handleUpdateUser}
+      />
+
+      <ExportReportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        assets={assets}
+        currentUser={currentUser}
+        isDark={isDarkMode}
       />
 
       {isAddModalOpen && (
