@@ -67,6 +67,12 @@ export interface AIConfig {
   apiKey?: string;
 }
 
+export interface GoogleSyncConfig {
+  clientId: string;
+  apiKey: string;
+  lastSync?: string;
+}
+
 // Risk Profile Types
 export type RiskLevel = 'safe' | 'conservative' | 'moderately_conservative' | 'balanced' | 'growth' | 'aggressive';
 

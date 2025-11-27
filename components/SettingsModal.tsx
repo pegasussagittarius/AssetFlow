@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight, CreditCard, Camera } from 'lucide-react';
-import { User as UserType } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { X, Moon, Sun, User, Save, CheckCircle, Phone, Target, ChevronRight, CreditCard, Camera, Cloud, Download, Upload, Loader2, AlertTriangle, ExternalLink, Eye, EyeOff } from 'lucide-react';
+import { User as UserType, GoogleSyncConfig } from '../types';
 import { RISK_PROFILES } from '../constants';
 
 interface SettingsModalProps {
@@ -11,6 +11,7 @@ interface SettingsModalProps {
   currentUser: UserType;
   onUpdateUser: (newUsername: string, newPhoneNumber: string, creditScore?: number, avatar?: string) => void;
   onOpenRiskSurvey: () => void;
+  onSyncGoogle: (action: 'backup' | 'restore', config: GoogleSyncConfig) => Promise<void>;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
@@ -20,7 +21,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   toggleTheme, 
   currentUser, 
   onUpdateUser,
-  onOpenRiskSurvey
+  onOpenRiskSurvey,
+  onSyncGoogle
 }) => {
   const [username, setUsername] = useState(currentUser.username);
   const [phoneNumber, setPhoneNumber] = useState(currentUser.phoneNumber);
@@ -28,10 +30,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [avatar, setAvatar] = useState<string>(currentUser.avatar || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Google Sync State
+  const [googleConfig, setGoogleConfig] = useState<GoogleSyncConfig>(() => {
+    const saved = localStorage.getItem('google_sync_config');
+    return saved ? JSON.parse(saved) : { clientId: '', apiKey: '' };
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [showGoogleKeys, setShowGoogleKeys] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset form state when modal opens/closes or user changes
+  const currentRiskProfile = useMemo(() => {
+    if (!currentUser.riskProfile) return null;
+    return RISK_PROFILES.find(p => p.id === currentUser.riskProfile);
+  }, [currentUser]);
+
   useEffect(() => {
     if (isOpen) {
       setUsername(currentUser.username);
@@ -40,10 +55,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       setAvatar(currentUser.avatar || '');
       setError('');
       setSuccess('');
+      setSyncMsg('');
     }
   }, [isOpen, currentUser]);
 
-  const currentRiskProfile = RISK_PROFILES.find(p => p.id === currentUser.riskProfile);
+  useEffect(() => {
+    localStorage.setItem('google_sync_config', JSON.stringify(googleConfig));
+  }, [googleConfig]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -53,7 +71,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size (limit to 500KB to prevent localStorage issues)
     if (file.size > 500 * 1024) {
       setError('Ảnh quá lớn. Vui lòng chọn ảnh dưới 500KB.');
       return;
@@ -81,36 +98,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       setError('Tên hiển thị không được để trống');
       return;
     }
-
     if (!trimmedPhone) {
         setError('Số điện thoại không được để trống');
         return;
     }
     
-    // Check if no changes were made
-    if (trimmedName === currentUser.username && 
-        trimmedPhone === currentUser.phoneNumber && 
-        parsedScore === currentUser.creditScore &&
-        avatar === currentUser.avatar) {
-        return;
-    }
-
-    // Check validation against other users in localStorage
+    // Validate duplicates
     const usersStr = localStorage.getItem('dashboard_users');
     if (usersStr) {
         const users: UserType[] = JSON.parse(usersStr);
-        
-        // Check if phone number is taken by ANOTHER user
         const phoneExists = users.some(u => u.id !== currentUser.id && u.phoneNumber === trimmedPhone);
         if (phoneExists) {
             setError('Số điện thoại này đã được sử dụng bởi tài khoản khác');
-            return;
-        }
-
-        // Check if username is taken by ANOTHER user (optional but recommended)
-        const usernameExists = users.some(u => u.id !== currentUser.id && u.username === trimmedName);
-        if (usernameExists) {
-            setError('Tên đăng nhập này đã được sử dụng');
             return;
         }
     }
@@ -120,14 +119,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     setTimeout(() => setSuccess(''), 3000);
   };
 
+  const handleGoogleAction = async (action: 'backup' | 'restore') => {
+      if (!googleConfig.clientId || !googleConfig.apiKey) {
+          setError('Vui lòng nhập Client ID và API Key trước khi đồng bộ');
+          return;
+      }
+      setIsSyncing(true);
+      setSyncMsg('');
+      try {
+          await onSyncGoogle(action, googleConfig);
+          if (action === 'backup') {
+              const now = new Date().toLocaleString('vi-VN');
+              setGoogleConfig(prev => ({...prev, lastSync: now}));
+              setSuccess('Đã sao lưu lên Drive thành công!');
+          } else {
+              setSuccess('Đã khôi phục dữ liệu thành công!');
+              // Wait a bit then close to refresh
+              setTimeout(() => {
+                  window.location.reload();
+              }, 1500);
+          }
+      } catch (err: any) {
+          setError('Lỗi đồng bộ: ' + (err.message || JSON.stringify(err)));
+      } finally {
+          setIsSyncing(false);
+      }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className={`rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh] ${
+      <div className={`rounded-2xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] ${
         isDark ? 'bg-slate-800 border border-slate-700' : 'bg-white'
       }`}>
-        {/* Header */}
         <div className={`p-5 border-b flex justify-between items-center ${
           isDark ? 'border-slate-700' : 'border-gray-100'
         }`}>
@@ -137,31 +162,30 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
+        <div className="p-6 space-y-8 overflow-y-auto custom-scrollbar">
           
-          {/* Section: Tài khoản & Avatar */}
+          {/* Section 1: Tài khoản */}
           <div>
-             <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+             <h4 className={`text-sm font-semibold uppercase mb-4 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
               Thông tin tài khoản
             </h4>
             
-            <form onSubmit={handleSaveInfo} className="space-y-6">
-              {/* Avatar Upload */}
-              <div className="flex justify-center mb-6">
+            <form onSubmit={handleSaveInfo} className="space-y-4">
+              <div className="flex justify-center mb-4">
                 <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                    {avatar ? (
                      <img 
                        src={avatar} 
                        alt="Avatar" 
-                       className={`w-24 h-24 rounded-full object-cover border-4 ${isDark ? 'border-slate-700' : 'border-slate-100'}`} 
+                       className={`w-20 h-20 rounded-full object-cover border-4 ${isDark ? 'border-slate-700' : 'border-slate-100'}`} 
                      />
                    ) : (
-                     <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-400' : 'bg-slate-100 border-white text-slate-400'}`}>
-                       <User className="w-12 h-12" />
+                     <div className={`w-20 h-20 rounded-full flex items-center justify-center border-4 ${isDark ? 'bg-slate-700 border-slate-600 text-slate-400' : 'bg-slate-100 border-white text-slate-400'}`}>
+                       <User className="w-10 h-10" />
                      </div>
                    )}
                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="w-8 h-8 text-white" />
+                      <Camera className="w-6 h-6 text-white" />
                    </div>
                    <input 
                       type="file" 
@@ -173,149 +197,148 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                  Tên hiển thị
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    className={`w-full p-3 pl-10 rounded-lg border outline-none transition-all ${
-                       isDark 
-                        ? 'bg-slate-900 border-slate-600 focus:border-blue-500 text-white' 
-                        : 'bg-slate-50 border-gray-300 focus:border-blue-500 text-gray-900'
-                    }`}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Nhập tên của bạn"
-                  />
-                  <User className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
-                </div>
+              <div className="grid grid-cols-1 gap-3">
+                 <div>
+                    <label className={`text-xs font-medium mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Tên hiển thị</label>
+                    <input type="text" className={`w-full p-2.5 rounded-lg border outline-none ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-gray-300'}`} value={username} onChange={(e) => setUsername(e.target.value)} />
+                 </div>
+                 <div>
+                    <label className={`text-xs font-medium mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Số điện thoại</label>
+                    <input type="tel" className={`w-full p-2.5 rounded-lg border outline-none ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-gray-300'}`} value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+                 </div>
+                 <div>
+                    <label className={`text-xs font-medium mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Điểm CIC</label>
+                    <input type="number" className={`w-full p-2.5 rounded-lg border outline-none ${isDark ? 'bg-slate-900 border-slate-600 text-white' : 'bg-slate-50 border-gray-300'}`} value={creditScore} onChange={(e) => setCreditScore(e.target.value)} placeholder="0" />
+                 </div>
               </div>
 
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                  Số điện thoại
-                </label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    className={`w-full p-3 pl-10 rounded-lg border outline-none transition-all ${
-                       isDark 
-                        ? 'bg-slate-900 border-slate-600 focus:border-blue-500 text-white' 
-                        : 'bg-slate-50 border-gray-300 focus:border-blue-500 text-gray-900'
-                    }`}
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="Nhập số điện thoại"
-                  />
-                  <Phone className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
-                  Điểm tín dụng CIC
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    className={`w-full p-3 pl-10 rounded-lg border outline-none transition-all ${
-                       isDark 
-                        ? 'bg-slate-900 border-slate-600 focus:border-blue-500 text-white placeholder-slate-500' 
-                        : 'bg-slate-50 border-gray-300 focus:border-blue-500 text-gray-900'
-                    }`}
-                    value={creditScore}
-                    onChange={(e) => setCreditScore(e.target.value)}
-                    placeholder="Ví dụ: 650"
-                  />
-                  <CreditCard className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" />
-                </div>
-              </div>
-
-              {error && <p className="text-red-500 text-xs bg-red-500/10 p-2 rounded">{error}</p>}
-              
-              {success && (
-                <div className="flex items-center gap-2 text-emerald-500 text-sm bg-emerald-500/10 p-2 rounded-lg animate-in fade-in">
-                  <CheckCircle className="w-4 h-4" /> {success}
-                </div>
-              )}
-
-              <button 
-                type="submit"
-                className={`w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors ${
-                  isDark 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                <Save className="w-4 h-4" /> Lưu thay đổi
+              <button type="submit" className={`w-full py-2 rounded-lg font-medium flex items-center justify-center gap-2 text-sm ${isDark ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+                <Save className="w-4 h-4" /> Lưu thông tin
               </button>
             </form>
           </div>
 
-          {/* Section: Hồ sơ rủi ro */}
+          {/* Section 2: Google Sync */}
           <div>
-            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+            <h4 className={`text-sm font-semibold uppercase mb-4 flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+               <Cloud className="w-4 h-4" /> Đồng bộ hóa Đám mây
+            </h4>
+            
+            <div className={`p-4 rounded-xl border mb-4 ${isDark ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50 border-gray-200'}`}>
+                <div className="flex justify-between items-center mb-3">
+                    <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Cấu hình Google Drive</span>
+                    <button onClick={() => setShowGoogleKeys(!showGoogleKeys)} className={`text-xs underline ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                        {showGoogleKeys ? 'Ẩn' : 'Thiết lập'}
+                    </button>
+                </div>
+
+                {showGoogleKeys && (
+                    <div className="space-y-3 mb-4 animate-in fade-in slide-in-from-top-2">
+                        <div>
+                            <label className={`text-[10px] uppercase font-bold mb-1 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Client ID</label>
+                            <input type="text" value={googleConfig.clientId} onChange={(e) => setGoogleConfig({...googleConfig, clientId: e.target.value})} className={`w-full p-2 text-xs rounded border outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`} placeholder="...apps.googleusercontent.com" />
+                        </div>
+                        <div>
+                            <label className={`text-[10px] uppercase font-bold mb-1 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>API Key</label>
+                            <div className="relative">
+                                <input type="password" value={googleConfig.apiKey} onChange={(e) => setGoogleConfig({...googleConfig, apiKey: e.target.value})} className={`w-full p-2 text-xs rounded border outline-none ${isDark ? 'bg-slate-800 border-slate-600 text-white' : 'bg-white border-gray-300'}`} placeholder="AIza..." />
+                            </div>
+                        </div>
+                        <div className="text-[10px] text-slate-500 italic">
+                            * Yêu cầu tạo Project trên Google Cloud Console và enable Drive API.
+                        </div>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                    <button 
+                        onClick={() => handleGoogleAction('backup')}
+                        disabled={isSyncing}
+                        className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${isDark ? 'bg-slate-800 border-slate-600 hover:bg-slate-700' : 'bg-white border-gray-300 hover:bg-blue-50 hover:border-blue-300'}`}
+                    >
+                        {isSyncing ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Upload className="w-5 h-5 text-blue-500" />}
+                        <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Sao lưu</span>
+                    </button>
+                    <button 
+                        onClick={() => handleGoogleAction('restore')}
+                        disabled={isSyncing}
+                        className={`p-3 rounded-lg border flex flex-col items-center justify-center gap-2 transition-all ${isDark ? 'bg-slate-800 border-slate-600 hover:bg-slate-700' : 'bg-white border-gray-300 hover:bg-orange-50 hover:border-orange-300'}`}
+                    >
+                        {isSyncing ? <Loader2 className="w-5 h-5 animate-spin text-orange-500" /> : <Download className="w-5 h-5 text-orange-500" />}
+                        <span className={`text-xs font-bold ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>Khôi phục</span>
+                    </button>
+                </div>
+                {googleConfig.lastSync && (
+                    <p className={`text-[10px] text-center mt-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Lần cuối: {googleConfig.lastSync}</p>
+                )}
+            </div>
+          </div>
+
+          {/* Section 3: Hồ sơ rủi ro */}
+          <div>
+            <h4 className={`text-sm font-semibold uppercase mb-4 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
               Hồ sơ đầu tư
             </h4>
             <button 
                 onClick={onOpenRiskSurvey}
-                className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all group ${
-                    isDark 
-                    ? 'bg-slate-900/50 border-slate-600 hover:bg-slate-800' 
-                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                className={`w-full p-3 rounded-xl border flex items-center justify-between transition-all group ${
+                    isDark ? 'bg-slate-900/50 border-slate-600 hover:bg-slate-800' : 'bg-white border-gray-200 hover:bg-gray-50'
                 }`}
             >
                 <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-700 text-blue-400' : 'bg-blue-50 text-blue-500'}`}>
-                        <Target className="w-5 h-5" />
+                        <Target className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                        <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Hồ sơ rủi ro</p>
-                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'} mt-0.5`}>
+                        <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>Hồ sơ rủi ro</p>
+                        <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
                            {currentRiskProfile ? (
                                <span style={{ color: currentRiskProfile.color }} className="font-bold">{currentRiskProfile.name}</span>
                            ) : 'Chưa thiết lập'}
                         </p>
                     </div>
                 </div>
-                <ChevronRight className={`w-5 h-5 transition-transform group-hover:translate-x-1 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
+                <ChevronRight className={`w-4 h-4 ${isDark ? 'text-slate-500' : 'text-gray-400'}`} />
             </button>
           </div>
 
-          {/* Section: Giao diện */}
+          {/* Section 4: Giao diện */}
           <div>
-            <h4 className={`text-sm font-semibold uppercase mb-3 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-              Giao diện ứng dụng
+            <h4 className={`text-sm font-semibold uppercase mb-4 ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
+              Giao diện
             </h4>
             <button 
               onClick={toggleTheme}
-              className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                isDark 
-                  ? 'bg-slate-900/50 border-slate-600 hover:border-slate-500' 
-                  : 'bg-slate-50 border-gray-200 hover:border-gray-300'
+              className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
+                isDark ? 'bg-slate-900/50 border-slate-600' : 'bg-slate-50 border-gray-200'
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-white text-orange-500 shadow-sm'}`}>
-                  {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                <div className={`p-2 rounded-lg ${isDark ? 'bg-slate-800 text-yellow-400' : 'bg-white text-orange-500'}`}>
+                  {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
                 </div>
-                <div className="text-left">
-                  <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     {isDark ? 'Chế độ Tối' : 'Chế độ Sáng'}
-                  </p>
-                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {isDark ? 'Dễ chịu cho mắt vào ban đêm' : 'Sáng sủa và rõ ràng'}
-                  </p>
-                </div>
+                </span>
               </div>
-              <div className={`w-10 h-5 rounded-full relative transition-colors ${isDark ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all duration-200 ${isDark ? 'left-6' : 'left-1'}`} />
+              <div className={`w-8 h-4 rounded-full relative transition-colors ${isDark ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all duration-200 ${isDark ? 'left-4.5' : 'left-0.5'}`} />
               </div>
             </button>
           </div>
+          
+          {/* Messages */}
+          {error && (
+             <div className="flex items-center gap-2 text-red-500 text-xs bg-red-500/10 p-3 rounded-lg animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+             </div>
+          )}
+          
+          {success && (
+            <div className="flex items-center gap-2 text-emerald-500 text-xs bg-emerald-500/10 p-3 rounded-lg animate-in fade-in">
+              <CheckCircle className="w-4 h-4 shrink-0" /> {success}
+            </div>
+          )}
 
         </div>
       </div>

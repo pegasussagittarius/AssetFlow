@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { X, FileText, Download, Calendar, Loader2 } from 'lucide-react';
 import { PieChart, Pie, Cell, Legend, ResponsiveContainer, LineChart, Line, YAxis } from 'recharts';
@@ -87,7 +88,11 @@ const ExportReportModal: React.FC<ExportReportModalProps> = ({
       });
       
       // Sort and map
-      const sortedData = Object.keys(dateMap).sort((a, b) => new Date(a).getTime() - new Date(b).getTime()).map(date => {
+      const sortedData = Object.keys(dateMap).sort((a, b) => {
+            const timeA = new Date(a).getTime();
+            const timeB = new Date(b).getTime();
+            return timeA - timeB;
+        }).map(date => {
             return { rawDate: date, value: dateMap[date] };
       });
       
